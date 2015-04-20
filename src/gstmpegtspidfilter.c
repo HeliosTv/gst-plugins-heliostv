@@ -280,7 +280,9 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
   
   if (filter->reste != NULL)
+  {
     gst_buffer_map (filter->reste, &info_reste, GST_MAP_READ);
+  }
  
   buf_pid = GPOINTER_TO_INT ((filter->pids)->data);
 
