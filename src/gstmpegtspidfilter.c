@@ -56,10 +56,11 @@
  * </refsect2>
  */
 
+//#define DEBUG
+
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,7 +162,15 @@ gst_my_filter_init (MpegtsPidFilter * filter)
   GST_PAD_SET_PROXY_CAPS (filter->srcpad);
   gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
 
+  filter->pids = NULL;
+
+  filter->diff = 0;
+
   filter->reste = NULL;
+
+  filter->copy = 0;
+
+  filter->buf_number = 0;
 
   //filter->silent = FALSE;
 }
@@ -267,8 +276,10 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   //GstIteratorResult iter_res = GST_ITERATOR_OK; 
 
   int i, j, k, cnt = 0, cmp_pid = 0, offset =0;
-  guint16 test = 0x0000, buf_pid = 1; 
+  guint16 test = 0x0000; 
   int buf_offset = 0;
+
+  char temp[5], buf_str[800];
 
   gboolean pid_ok = 0;
 
@@ -283,16 +294,17 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   {
     gst_buffer_map (filter->reste, &info_reste, GST_MAP_READ);
   }
- 
-  buf_pid = GPOINTER_TO_INT ((filter->pids)->data);
+
+  GST_CAT_INFO_OBJECT (gst_mpegtspidfilter_debug, filter, "\nBuf Number %d :\n", filter->buf_number);
+
 
   buf_offset -= filter->diff;
   filter->buf_number++;
 
-
   //merge package parts if need to copy
   if (filter->diff!=0 && filter->copy)
   {
+    strcpy(buf_str, "");
     //data from buffer n-1
     gst_buffer_copy_into (buf_out, filter->reste, GST_BUFFER_COPY_MEMORY, 0, filter->diff);
 
@@ -301,6 +313,22 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
 
     //gst_buffer_remove_all_memory (filter->reste);
+
+      strcat(buf_str,"\n");
+      for (j=cnt;j<cnt+PACKAGE_SIZE;j++)
+      {
+        k = j%(PACKAGE_SIZE);
+        if (k%20 == 19)
+        {
+          sprintf(temp, "%02x\n", info_out.data[j]);
+        }
+        else
+        {
+          sprintf(temp, "%02x ", info_out.data[j]);
+        }
+        strcat(buf_str,temp);
+      }
+    GST_CAT_DEBUG_OBJECT (gst_mpegtspidfilter_debug, filter, "%s\n", buf_str);
     cnt+=PACKAGE_SIZE;
   }
 
@@ -316,6 +344,8 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   /************** filtrage PID **************/
   for (i=0; i<(info.size-offset);i+=PACKAGE_SIZE)
   {
+    strcpy(buf_str, "");
+
     if (buf_offset < 0)
     {
       buf_offset += PACKAGE_SIZE;
@@ -324,7 +354,6 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     test = info.data[buf_offset+1]<<8;
     test += info.data[buf_offset+2];
     test &= 0x1FFF;
-
 
     //Test on PID
     while ((filter->pids) != NULL && g_list_length (filter->pids) != 0 && !pid_ok) {
@@ -339,6 +368,8 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         filter->pids = g_list_previous (filter->pids);
       }
     }
+
+    GST_CAT_INFO_OBJECT (gst_mpegtspidfilter_debug, filter, "\ntest : %04x\npid ok ?  %s\n", test, pid_ok?"True":"False");
 
     filter->pids = p_pids;
 
@@ -359,6 +390,26 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, buf_offset, PACKAGE_SIZE);
       gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
 
+
+      #ifdef DEBUG
+      strcat(buf_str,"\n");
+      for (j=cnt;j<cnt+PACKAGE_SIZE;j++)
+      {
+        k = j%(PACKAGE_SIZE);
+        if (k%20 == 19)
+        {
+          sprintf(temp, "%02x\n", info_out.data[j]);
+        }
+        else
+        {
+          sprintf(temp, "%02x ", info_out.data[j]);
+        }
+        strcat(buf_str,temp);
+      }
+      GST_CAT_DEBUG_OBJECT (gst_mpegtspidfilter_debug, filter, "\n%s", buf_str);
+      #endif
+
+      cnt += PACKAGE_SIZE;
       pid_ok = 0;
     }
   buf_offset += PACKAGE_SIZE;
