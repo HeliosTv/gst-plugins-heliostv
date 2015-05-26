@@ -8,7 +8,8 @@ dnl required versions of gstreamer and plugins-base
 GST_REQUIRED=1.0.0
 GSTPB_REQUIRED=1.0.0
 
-AC_CONFIG_SRCDIR([src/gstmpegtspidfilter.c])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_SRCDIR([src/heliostvsrc/gstheliostvsrc2.cpp])
 AC_CONFIG_HEADERS([config.h])
 
 dnl required version of automake
@@ -19,6 +20,8 @@ AM_MAINTAINER_MODE([enable])
 
 dnl check for tools (compiler etc.)
 AC_PROG_CC
+AX_BOOST_BASE([1.48],, [AC_MSG_ERROR([libfoo needs Boost, but it was not found in your system])])
+AX_BOOST_SYSTEM
 
 dnl required version of libtool
 LT_PREREQ([2.2.6])
@@ -59,6 +62,13 @@ PKG_CHECK_MODULES(GST, [
   ])
 ])
 
+PKG_CHECK_MODULES([GIO], [gio-2.0 >= 2.40],
+      [have_gio=yes], [
+   AC_MSG_ERROR([
+      You need to install or upgrade gio.
+  ])
+])
+
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)
 AC_MSG_CHECKING([to see if compiler understands -Wall])
 save_CFLAGS="$CFLAGS"
@@ -82,6 +92,6 @@ dnl set proper LDFLAGS for plugins
 GST_PLUGIN_LDFLAGS='-module -avoid-version -export-symbols-regex [_]*\(gst_\|Gst\|GST_\).*'
 AC_SUBST(GST_PLUGIN_LDFLAGS)
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile src/heliostvsrc/Makefile])
 AC_OUTPUT
 
