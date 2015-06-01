@@ -84,7 +84,8 @@ struct _HeliosTvSource
   char *uri;
 
   /* server information */
-  int port;
+  int port_control;
+  int port_stream;
   char *host;
 
   /* socket */

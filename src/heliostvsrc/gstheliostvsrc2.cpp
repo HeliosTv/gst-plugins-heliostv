@@ -60,6 +60,9 @@
 # include <config.h>
 #endif
 
+#include <cstdlib>
+#include <cstring>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,6 +73,7 @@ extern "C"
 #include <gst/base/gstbasesrc.h>
 }
 
+#include <msgpack.hpp>
 #include "gstheliostvsrc2.h"
 
 
@@ -77,6 +81,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_heliostvsrc_debug);
 #define GST_CAT_DEFAULT gst_heliostvsrc_debug
 
 #define MAX_READ_SIZE                   4 * 1024
+#define max_length			64
 
 using boost::asio::ip::tcp;
 
@@ -86,7 +91,8 @@ enum
   ARG_0,
   PROP_URI,
   PROP_HOST,
-  PROP_PORT,
+  PROP_PORT_CONTROL,
+  PROP_PORT_STREAM,
 };
 
 /* the capabilities of the inputs and outputs.
@@ -153,8 +159,14 @@ gst_heliostvsrc_class_init (HeliosTvSourceClass * klass)
       g_param_spec_string ("host", "host",
           "The host IP address to receive packets from", "localhost",
           (GParamFlags) G_PARAM_READWRITE));
-  g_object_class_install_property (gobject_class, PROP_PORT,
-      g_param_spec_int ("port", "port", "The port to receive packets from", 0,
+
+  g_object_class_install_property (gobject_class, PROP_PORT_CONTROL,
+      g_param_spec_int ("port_control", "port_control", "The port to receive packets from", 0,
+          10000, 6000,
+          (GParamFlags) G_PARAM_READWRITE));
+
+  g_object_class_install_property (gobject_class, PROP_PORT_STREAM,
+      g_param_spec_int ("port_stream", "port_stream", "The port to receive packets from", 0,
           10000, 6000,
           (GParamFlags) G_PARAM_READWRITE));
 
@@ -192,7 +204,8 @@ gst_heliostvsrc_class_init (HeliosTvSourceClass * klass)
 static void
 gst_heliostvsrc_init (HeliosTvSource * source)
 {
-  source->port = 6000;
+  source->port_control = 6005;
+  source->port_stream = 6006;
   source->host = g_strdup ("localhost");
   source->uri = NULL;
   source->io_service = new boost::asio::io_service;
@@ -238,30 +251,29 @@ static gboolean
 gst_heliostvsrc_start (GstBaseSrc * bsrc)
 {
   HeliosTvSource *src = GST_HELIOSTVSOURCE (bsrc);
-  GError *err;
+  //GError *err;
 
   GST_DEBUG_OBJECT (src, "boost version");
 
   tcp::resolver resolver(*src->io_service);
 
+/***** control connection *****/
+
+  std::cout << "Control connection" << std::endl;
+
   char port[10] = "";
-  sprintf(port, "%d", src->port);
+  sprintf(port, "%d", src->port_control);
   GST_DEBUG_OBJECT (src, "boost version new port : %s", port);
 
-  tcp::resolver::query query(tcp::v4(), src->host, port);
+  tcp::resolver::query query_control(tcp::v4(), src->host, port);
   GST_DEBUG_OBJECT (src, "boost version");
-  src->iterator = resolver.resolve(query);
+  src->iterator = resolver.resolve(query_control);
 
   /* create receiving client socket */
   GST_DEBUG_OBJECT (src, "boost opening receiving client socket to %s:%d",
-      src->host, src->port);
-
+      src->host, src->port_stream);
   GST_DEBUG_OBJECT (src, "opened receiving client socket");
   GST_OBJECT_FLAG_SET (src, GST_HELIOSTVSRC_OPEN);
-
-  GST_DEBUG_OBJECT (src, "is open ?");
-  /*if (!(*src->socket).is_open())
-    goto no_socket;*/
 
 
   GST_DEBUG_OBJECT (src, "connect");
@@ -275,15 +287,100 @@ gst_heliostvsrc_start (GstBaseSrc * bsrc)
   }
 
 
+    // REQUEST CONTROL
+    msgpack::sbuffer sbuf_control;
+    char temp_control[max_length];
+
+    strcpy (temp_control, src->uri);
+
+    msgpack::type::tuple<int> req_control(0);
+
+    msgpack::pack(sbuf_control, req_control);
+    boost::asio::write(*src->socket, boost::asio::buffer(sbuf_control.data(), sbuf_control.size()));
+
+
+    // REPLY CONTROL
+    char reply_control[10];
+    size_t reply_length_control = boost::asio::read(*src->socket, boost::asio::buffer(reply_control, sbuf_control.size()));
+
+    msgpack::unpacked msg_control;
+    msgpack::type::tuple<int> rep_control;
+
+    msgpack::unpack(&msg_control, reply_control, sbuf_control.size());
+    msg_control.get().convert(&rep_control);
+
+    int ident = std::get<0>(rep_control);
+    std::cout << "reply : " << std::get<0>(rep_control) << "\n" << std::endl;
+
+
+/***** control disconnection *****/
+
+    std::cout << "closing socket" << std::endl;
+    if ((*src->socket).is_open())
+    {
+      GST_DEBUG_OBJECT (src, "closing socket");
+      (*src->socket).close(); 
+      src->socket = new boost::asio::ip::tcp::socket(*src->io_service);
+    }
+
+/***** Stream connection *****/
+
+
+  std::cout << "Stream connection" << std::endl;
+  sprintf(port, "%d", src->port_stream);
+  GST_DEBUG_OBJECT (src, "boost version new port : %s", port);
+
+  tcp::resolver::query query_stream(tcp::v4(), src->host, port);
+  GST_DEBUG_OBJECT (src, "boost version");
+  src->iterator = resolver.resolve(query_stream);
+
+  /* create receiving client socket */
+  GST_DEBUG_OBJECT (src, "boost opening receiving client socket to %s:%d",
+      src->host, src->port_stream);
+  GST_DEBUG_OBJECT (src, "opened receiving client socket");
+  GST_OBJECT_FLAG_SET (src, GST_HELIOSTVSRC_OPEN);
+
+
+  GST_DEBUG_OBJECT (src, "connect");
+  try
+  {
+  boost::asio::connect(*src->socket, src->iterator);
+  }
+  catch (boost::system::system_error const& e)
+  {
+    std::cout << "Warning: could not connect : " << e.what() << std::endl;
+  }
+
+
+    // REQUEST STREAM
+    msgpack::sbuffer sbuf_stream;
+    char temp_stream[max_length];
+
+    strcpy (temp_stream, src->uri);
+
+    msgpack::type::tuple<int, int, std::string> req_stream(1, ident, temp_stream);
+
+    msgpack::pack(sbuf_stream, req_stream);
+    boost::asio::write(*src->socket, boost::asio::buffer(sbuf_stream.data(), sbuf_stream.size()));
+
+
+    // REPLY STREAM
+    char reply_stream[6];
+    size_t reply_length_stream = boost::asio::read(*src->socket, boost::asio::buffer(reply_stream, sbuf_stream.size()));
+
+    msgpack::unpacked msg_stream;
+    //msgpack::unpack(&msg_stream, reply_stream, reply_length_stream);
+
+
   return TRUE;
 
-no_socket:
+/*no_socket:
   {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, (NULL),
         ("Failed to create socket: %s", err->message));
     g_clear_error (&err);
     return FALSE;
-  }
+  }*/
 
   GST_DEBUG_OBJECT (src, "end of start");
 }
@@ -531,8 +628,10 @@ gst_heliostvsrc_set_property (GObject * object, guint prop_id,
     case PROP_HOST:
       source->host = g_value_dup_string (value); 
       break;
-    case PROP_PORT:
-      source->port = g_value_get_int (value); 
+    case PROP_PORT_CONTROL:
+      source->port_control = g_value_get_int (value); 
+    case PROP_PORT_STREAM:
+      source->port_stream = g_value_get_int (value); 
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -557,8 +656,10 @@ gst_heliostvsrc_get_property (GObject * object, guint prop_id,
     case PROP_HOST:
       g_value_set_string (value, source->host);
       break;
-    case PROP_PORT:
-      g_value_set_int (value, source->port);
+    case PROP_PORT_CONTROL:
+      g_value_set_int (value, source->port_control);
+    case PROP_PORT_STREAM:
+      g_value_set_int (value, source->port_stream);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

@@ -19,13 +19,17 @@ dnl enable mainainer mode by default
 AM_MAINTAINER_MODE([enable])
 
 dnl check for tools (compiler etc.)
+AC_PROG_CXX
 AC_PROG_CC
+AX_CXX_COMPILE_STDCXX_11()
 AX_BOOST_BASE([1.48],, [AC_MSG_ERROR([libfoo needs Boost, but it was not found in your system])])
 AX_BOOST_SYSTEM
 
 dnl required version of libtool
 LT_PREREQ([2.2.6])
 LT_INIT
+
+AC_CHECK_LIB([msgpack], [msgpack_unpack])
 
 dnl give error and exit if we don't have pkgconfig
 AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, [ ], [
