@@ -81,9 +81,10 @@ GST_DEBUG_CATEGORY_STATIC (gst_heliostvsrc_debug);
 #define GST_CAT_DEFAULT gst_heliostvsrc_debug
 
 #define MAX_READ_SIZE                   4 * 1024
-#define max_length			64
+#define max_length			1024
 
 using boost::asio::ip::tcp;
+
 
 /* properties */
 enum
@@ -269,7 +270,6 @@ gst_heliostvsrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "boost version");
   src->iterator = resolver.resolve(query_control);
 
-  /* create receiving client socket */
   GST_DEBUG_OBJECT (src, "boost opening receiving client socket to %s:%d",
       src->host, src->port_stream);
   GST_DEBUG_OBJECT (src, "opened receiving client socket");
@@ -296,22 +296,37 @@ gst_heliostvsrc_start (GstBaseSrc * bsrc)
     msgpack::type::tuple<int> req_control(0);
 
     msgpack::pack(sbuf_control, req_control);
-    boost::asio::write(*src->socket, boost::asio::buffer(sbuf_control.data(), sbuf_control.size()));
+    boost::asio::write(*src->socket, boost::asio::buffer(sbuf_control.data(), 20));
 
 
     // REPLY CONTROL
-    char reply_control[10];
-    size_t reply_length_control = boost::asio::read(*src->socket, boost::asio::buffer(reply_control, sbuf_control.size()));
+    /*msgpack::unpacker m_pac;
+    m_pac.reserve_buffer(1024);
+    size_t reply_length_control = boost::asio::read(*src->socket, m_pac.buffer());
+*/
 
+    char reply_control[64];
+    size_t reply_length_control = read(*src->socket, boost::asio::buffer(reply_control, 9));
+
+    std::cout << "length : " << reply_length_control << "\n" << std::endl;
+    
     msgpack::unpacked msg_control;
-    msgpack::type::tuple<int> rep_control;
 
-    msgpack::unpack(&msg_control, reply_control, sbuf_control.size());
+    msgpack::type::tuple<int, std::string> rep_control;
+
+    msgpack::unpack(&msg_control, reply_control, reply_length_control);
     msg_control.get().convert(&rep_control);
 
     int ident = std::get<0>(rep_control);
-    std::cout << "reply : " << std::get<0>(rep_control) << "\n" << std::endl;
+    std::cout << "reply : " << std::get<0>(rep_control) << ", " << std::get<1>(rep_control) << "\n" << std::endl;
 
+    if (strcmp(std::get<1>(rep_control).c_str(), "OK"))
+    {
+      std::cout << "FALSE Control\n" << std::endl;
+      return FALSE;
+    }
+
+    std::cout << "TRUE Control\n" << std::endl;
 
 /***** control disconnection *****/
 
@@ -324,7 +339,6 @@ gst_heliostvsrc_start (GstBaseSrc * bsrc)
     }
 
 /***** Stream connection *****/
-
 
   std::cout << "Stream connection" << std::endl;
   sprintf(port, "%d", src->port_stream);
@@ -365,14 +379,27 @@ gst_heliostvsrc_start (GstBaseSrc * bsrc)
 
 
     // REPLY STREAM
-    char reply_stream[6];
-    size_t reply_length_stream = boost::asio::read(*src->socket, boost::asio::buffer(reply_stream, sbuf_stream.size()));
+    char reply_stream[10];
+    size_t reply_length_stream = boost::asio::read(*src->socket, boost::asio::buffer(reply_stream, 4));
+
+    std::cout << "length : " << reply_length_stream << "\n" << std::endl;
 
     msgpack::unpacked msg_stream;
-    //msgpack::unpack(&msg_stream, reply_stream, reply_length_stream);
+    msgpack::type::tuple<std::string> rep_stream;
 
+    msgpack::unpack(&msg_stream, reply_stream, reply_length_stream);
+    msg_stream.get().convert(&rep_stream);
 
-  return TRUE;
+    std::cout << "reply : " << std::get<0>(rep_stream) << "\n" << std::endl;
+
+    if (strcmp(std::get<0>(rep_stream).c_str(), "OK"))
+    {
+      std::cout << "FALSE Stream\n" << std::endl;
+      return FALSE;
+    }
+
+    std::cout << "TRUE Stream\n" << std::endl;
+    return TRUE;
 
 /*no_socket:
   {
@@ -382,7 +409,7 @@ gst_heliostvsrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }*/
 
-  GST_DEBUG_OBJECT (src, "end of start");
+    GST_DEBUG_OBJECT (src, "end of start");
 }
 /***********************************************************************************/
 
