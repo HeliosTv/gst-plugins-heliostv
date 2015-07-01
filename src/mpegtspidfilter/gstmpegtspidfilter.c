@@ -128,7 +128,7 @@ gst_my_filter_class_init (MpegtsPidFilterClass * klass)
   gobject_class->get_property = gst_my_filter_get_property;
 
   /* define properties */ //--------> corriger
-  g_object_class_install_property (gobject_class, PROP_PID, g_param_spec_string ("pids", "pids", "Set List pids in decimal : pid1,pid2,...", "0", G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_PID, g_param_spec_string ("pids", "pids", "Set List pids : pid1,pid2,...", "0", G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_factory));
@@ -163,16 +163,11 @@ gst_my_filter_init (MpegtsPidFilter * filter)
   gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
 
   filter->pids = NULL;
-
   filter->diff = 0;
-
   filter->reste = NULL;
-
   filter->copy = 0;
-
   filter->buf_number = 0;
 
-  //filter->silent = FALSE;
 }
 
 static void
@@ -189,7 +184,7 @@ gst_my_filter_set_property (GObject * object, guint prop_id,
     case PROP_PID:
       s = g_value_get_string (value);
       //parsing
-      temp = strtok (s, ",;:");
+      temp = strtok (s, ",;");
       while (temp != NULL)
       {
         temp_int = atoi(temp);
@@ -270,10 +265,6 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   GstBuffer * buf_out;
   buf_out = gst_buffer_new ();
-
-  //GstIterator * iter;
-  //iter = gst_iterator_new_list (G_TYPE_INT, GMutex *lock, guint32 *master_cookie, &iter, GObject *owner, GstIteratorItemFunction item);
-  //GstIteratorResult iter_res = GST_ITERATOR_OK; 
 
   int i, j, k, cnt = 0, cmp_pid = 0, offset =0;
   guint16 test = 0x0000; 
@@ -373,17 +364,6 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
     filter->pids = p_pids;
 
-/*
-    while (iter_res == GST_ITERATOR_OK && g_list_length (filter->pids) != 0 && !pid_ok) {
-      gint pids_list;
-      iter_res = gst_iterator_next(iter, pids_list);
-      if (pids_list == test)
-      {
-        pid_ok = 1;
-      }
-    }
-*/
-
     //Parsing buffer
     if (pid_ok && buf_offset<=(info.size-PACKAGE_SIZE))
     {
@@ -440,9 +420,6 @@ gst_my_filter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gst_buffer_unmap (buf, &info);
   gst_buffer_unmap (buf_out, &info_out);
   
-/*
-  g_list_free (p_pids);
-*/
 
   return gst_pad_push (filter->srcpad, buf_out);
 }

@@ -49,6 +49,10 @@
 #include <gst/gst.h>
 #include <boost/asio.hpp>
 #include <gst/base/gstpushsrc.h>
+#include "heliostv/TcpClient.h"
+#include "heliostv/ControlChannel.h"
+#include "heliostv/TcpChannelFactory.h"
+#include "heliostv/Stream.h"
 
 G_BEGIN_DECLS
 
@@ -88,10 +92,7 @@ struct _HeliosTvSource
   int port_stream;
   char *host;
 
-  /* socket */
-  boost::asio::io_service *io_service;
-  boost::asio::ip::tcp::socket *socket;
-  boost::asio::ip::tcp::resolver::iterator iterator;
+  HeliosTv::Stream *stream;
 };
 
 /* Standard definition defining a class for this element. */

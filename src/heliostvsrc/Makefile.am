@@ -14,13 +14,13 @@ plugin_LTLIBRARIES = libgstheliostvsrc2.la
 ##############################################################################
 
 # sources used to compile this plug-in
-libgstheliostvsrc2_la_SOURCES = gstheliostvsrc2.cpp gstheliostvsrc2.h
+libgstheliostvsrc2_la_SOURCES = gstheliostvsrc2.cpp gstheliostvsrc2.h TcpClient.h
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
 libgstheliostvsrc2_la_CPPFLAGS = $(GST_CFLAGS) $(BOOST_CPPFLAGS)
-libgstheliostvsrc2_la_LIBADD = $(GST_LIBS) $(BOOST_SYSTEM_LIB)
-libgstheliostvsrc2_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
+libgstheliostvsrc2_la_LIBADD = $(GST_LIBS) $(BOOST_SYSTEM_LIB) -lheliostv
+libgstheliostvsrc2_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) $(BOOST_LDFLAGS)
 libgstheliostvsrc2_la_LIBTOOLFLAGS = --tag=disable-static
 
 # headers we need but don't want installed
-noinst_HEADERS = gstheliostvsrc2.h
+noinst_HEADERS = gstheliostvsrc2.h heliostv/ControlChannel.h heliostv/DataChannel.h heliostv/IChannelFactory.h heliostv/ITransportClient.h heliostv/Stream.h heliostv/TcpChannelFactory.h heliostv/TcpClient.h
