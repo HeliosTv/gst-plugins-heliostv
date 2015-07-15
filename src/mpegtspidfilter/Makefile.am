@@ -17,9 +17,10 @@ plugin_LTLIBRARIES = libgstmpegtspidfilter.la
 libgstmpegtspidfilter_la_SOURCES = gstmpegtspidfilter.c gstmpegtspidfilter.h
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
-libgstmpegtspidfilter_la_CFLAGS = $(GST_CFLAGS)
+libgstmpegtspidfilter_la_CFLAGS = $(GST_CFLAGS) -ggdb3 -O0
+libgstmpegtspidfilter_la_CXXFLAGS = -ggdb3 -O0
 libgstmpegtspidfilter_la_LIBADD = $(GST_LIBS)
-libgstmpegtspidfilter_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
+libgstmpegtspidfilter_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -ggdb3
 libgstmpegtspidfilter_la_LIBTOOLFLAGS = --tag=disable-static
 
 # headers we need but don't want installed

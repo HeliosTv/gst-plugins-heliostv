@@ -30,11 +30,9 @@ struct _MpegtsPidFilter
 
   GList *pids;
 
-  uint diff;
-
   GstBuffer *reste;
 
-  gboolean copy;
+  int copy;
 };
 
 /* Standard definition defining a class for this element. */

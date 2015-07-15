@@ -1,5 +1,3 @@
-//#define DEBUG 0
-
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -95,9 +93,8 @@ gst_mpegtspidfilter_init (MpegtsPidFilter *filter)
   gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
 
   filter->pids = NULL;
-  filter->diff = 0;
   filter->reste = gst_buffer_new ();
-  filter->copy = 0;
+  filter->copy = FALSE;
 }
 
 static void
@@ -153,7 +150,6 @@ gst_mpegtspidfilter_get_property (GObject *object, guint prop_id, GValue *value,
 static GstFlowReturn
 gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
 {
-  #if 0
   //variable declaration and init
   MpegtsPidFilter *filter;
   filter = GST_MPEGTSPIDFILTER (parent);
@@ -161,76 +157,81 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
   GstBuffer *buf_out;
   buf_out = gst_buffer_new ();
 
-  int i, cnt = 0, cmp_pid = 0, offset =0;
+  int i, cmp_pid = 0, offset = 0;
   guint16 test = 0; 
-  int j, k;
-  char buf_str[800];
-  char temp[5];
   int buf_offset = 0;
   gboolean pid_ok = 0;
 
+  /*int j, k;
+  GstMapInfo info_out;*/
+
   GList *pointer_pids = filter->pids;
 
-  GstMapInfo info, info_out;
+  GstMapInfo info, info_reste;
 
   gst_buffer_map (buf, &info, GST_MAP_READ);
 
-  buf_offset -= filter->diff;
+  //Get Size of reste data 
+  gst_buffer_map (filter->reste, &info_reste, GST_MAP_READ);
+  buf_offset = info_reste.size;
+  gst_buffer_unmap (filter->reste, &info_reste);
 
   //merge package parts if need to copy
-  if (filter->diff!=0 && filter->copy)
+  if (buf_offset>0 && filter->copy)
   {
-    //data from buffer n-1
-    gst_buffer_copy_into (buf_out, filter->reste, GST_BUFFER_COPY_MEMORY, 0, filter->diff);
+    gst_buffer_copy_into (buf_out, filter->reste, GST_BUFFER_COPY_MEMORY, 0, buf_offset);
 
+      //DEBUG
+      /*gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
 
-    gst_buffer_unref (filter->reste);
-
-    //data from buffer n
-    gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, 0, (PACKAGE_SIZE-filter->diff));
-
-    //#ifdef DEBUG
-    gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
-
-    strcpy(buf_str, "");
-    strcat(buf_str,"\n");
-    for (j=cnt;j<cnt+PACKAGE_SIZE;j++)
-    {
-      k = j%(PACKAGE_SIZE);
-      if (k%20 == 19)
+      for (j=0;j<buf_offset;j++)
       {
-        sprintf(temp, "%02x\n", info_out.data[j]);
+        k = j%(PACKAGE_SIZE);
+        if (k == 187 || k%20 == 19)
+        {
+          printf("%02x\n", info_out.data[j]);
+        }
+        else
+        {
+          printf("%02x ", info_out.data[j]);
+        }
       }
-      else
-      {
-        sprintf(temp, "%02x ", info_out.data[j]);
-      }
-      strcat(buf_str,temp);
-    }
-    GST_CAT_DEBUG_OBJECT (gst_mpegtspidfilter_debug, filter, "%s\n", buf_str);
-    gst_buffer_unmap (buf_out, &info_out);
+      gst_buffer_unmap (buf_out, &info_out);
+      printf("\n\n");*/
 
-    cnt+=PACKAGE_SIZE;
-    //#endif
+    gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, 0, (PACKAGE_SIZE-buf_offset));
+
+      //DEBUG
+      /*gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
+
+      for (j=0;j<buf_offset;j++)
+      {
+        k = j%(PACKAGE_SIZE);
+        if (k == 187 || k%20 == 19)
+        {
+          printf("%02x\n", info_out.data[j]);
+        }
+        else
+        {
+          printf("%02x ", info_out.data[j]);
+        }
+      }
+      gst_buffer_unmap (buf_out, &info_out);
+      printf("\n\n");*/
+
   }
 
-  if (filter->diff!=0)
-  {
-    filter->diff=PACKAGE_SIZE-filter->diff;
-  }
+  if (buf_offset>0)
+    buf_offset = PACKAGE_SIZE-buf_offset;
 
-  offset=filter->diff;
+  offset = buf_offset;
 
   /**************filtrage PID **************/
-  for (i=0; i<(info.size-offset);i+=PACKAGE_SIZE)
+  for (i=offset; i<info.size;i+=PACKAGE_SIZE)
   {
-    if (buf_offset < 0)
-    {
-      buf_offset += PACKAGE_SIZE;
-    }
 
-    test = info.data[buf_offset+1]<<8;
-    test += info.data[buf_offset+2];
+    test = info.data[i+1]<<8;
+    test += info.data[i+2];
     test &= 0x1FFF;
 
     //Test on PID
@@ -247,71 +248,75 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
       }
     }
 
-    GST_CAT_INFO_OBJECT (gst_mpegtspidfilter_debug, filter, "\ntest : %04x\npid ok ?  %s\n", test, pid_ok?"True":"False");
-
     filter->pids = pointer_pids;
 
-
     //Parsing buffer
-    if (pid_ok && buf_offset<=(info.size-PACKAGE_SIZE))
+    if (pid_ok && i<(info.size-PACKAGE_SIZE))
     {
-      gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, buf_offset, PACKAGE_SIZE);
+      gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, i, PACKAGE_SIZE);
 
-      pid_ok = 0;
+      //DEBUG
+      /*gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
 
-      //#ifdef DEBUG
-      gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
-
-      strcpy(buf_str, "");
-      strcat(buf_str,"\n");
-      for (j=cnt;j<cnt+PACKAGE_SIZE;j++)
+      for (j=0;j<info_out.size;j++)
       {
         k = j%(PACKAGE_SIZE);
-        if (k%20 == 19)
+        if (k == 187 || k%20 == 19)
         {
-          sprintf(temp, "%02x\n", info_out.data[j]);
+          printf("%02x\n", info_out.data[j]);
         }
         else
         {
-          sprintf(temp, "%02x ", info_out.data[j]);
+          printf("%02x ", info_out.data[j]);
         }
-        strcat(buf_str,temp);
       }
-      GST_CAT_DEBUG_OBJECT (gst_mpegtspidfilter_debug, filter, "\n%s", buf_str);
+      gst_buffer_unmap (buf_out, &info_out);*/
 
-      gst_buffer_unmap (buf_out, &info_out);
-      //#endif
+      pid_ok = 0;
     }
-  buf_offset += PACKAGE_SIZE;
   }
-  
-  buf_offset -= PACKAGE_SIZE;
 
-  filter->diff = info.size-buf_offset;
-  
+  i -= PACKAGE_SIZE;
 
-  //Print end of buffer
-  if (filter->diff!=0)
+  //Copy end of buffer
+  if ((info.size-i)>0)
   {
-    filter->reste = gst_buffer_new (); //_allocate (NULL, filter->diff, NULL);
-    gst_buffer_copy_into (filter->reste, buf, GST_BUFFER_COPY_MEMORY, buf_offset, filter->diff);
+    gst_buffer_unref (filter->reste);
+    filter->reste = gst_buffer_new ();
+    gst_buffer_copy_into (filter->reste, buf, GST_BUFFER_COPY_MEMORY, i, info.size-i);
   }
-
 
   //test copy end of buffer
   if (pid_ok)
-    filter->copy = TRUE;
+    filter->copy = 1;
   else
-    filter->copy = FALSE;
+    filter->copy = 0;
 
 
   //Unmapbuffer
   gst_buffer_unmap (buf, &info);
-
   gst_buffer_unref(buf);
-  #endif
 
-  return gst_pad_push (filter->srcpad, buf);
+      //DEBUG
+      /*gst_buffer_map (filter->reste, &info_reste, GST_MAP_READ);
+
+      for (j=0;j<info_reste.size;j++)
+      {
+        k = j%(PACKAGE_SIZE);
+        if (k%20 == 19)
+        {
+          printf("%02x\n", info_reste.data[j]);
+        }
+        else
+        {
+          printf("%02x ", info_reste.data[j]);
+        }
+      }
+      gst_buffer_unmap (filter->reste, &info_reste);
+
+      printf("\n\n\n\n");*/
+
+  return gst_pad_push (filter->srcpad, buf_out);
 }
 /***********************************************************************************/
 
