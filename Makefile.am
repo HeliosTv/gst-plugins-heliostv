@@ -1,3 +1,3 @@
-SUBDIRS = src/heliostvsrc
+SUBDIRS = src/mpegtspidfilter
 
 EXTRA_DIST = autogen.sh
