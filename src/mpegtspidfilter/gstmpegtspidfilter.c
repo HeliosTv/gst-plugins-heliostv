@@ -39,8 +39,11 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_mpegtspidfilter_parent_class parent_class
 G_DEFINE_TYPE (MpegtsPidFilter, gst_mpegtspidfilter, GST_TYPE_ELEMENT);
 
+
+static void gst_mpegtspidfilter_finalize (GObject * object);
 static void gst_mpegtspidfilter_set_property (GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec);
 static void gst_mpegtspidfilter_get_property (GObject *object, guint prop_id, GValue *value, GParamSpec *pspec);
+static gboolean gst_mpegtspidfilter_sink_event (GstPad * pad, GstObject * parent, GstEvent * event);
 
 static GstFlowReturn gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf);
 
@@ -61,6 +64,7 @@ gst_mpegtspidfilter_class_init (MpegtsPidFilterClass *klass)
   /*define virtual function pointers */
   gobject_class->set_property = gst_mpegtspidfilter_set_property;
   gobject_class->get_property = gst_mpegtspidfilter_get_property;
+  gobject_class->finalize = gst_mpegtspidfilter_finalize;
 
   /*define properties */ //--------> corriger
   g_object_class_install_property (gobject_class, PROP_PID, g_param_spec_string ("pids", "pids", "Set List pids : pid1,pid2,...", "0", G_PARAM_READWRITE));
@@ -84,7 +88,11 @@ static void
 gst_mpegtspidfilter_init (MpegtsPidFilter *filter)
 {
   filter->sinkpad = gst_pad_new_from_static_template (&sink_factory, "sink");
+  
   gst_pad_set_chain_function (filter->sinkpad, GST_DEBUG_FUNCPTR(gst_mpegtspidfilter_chain));
+  gst_pad_set_event_function (filter->sinkpad,
+                              GST_DEBUG_FUNCPTR(gst_mpegtspidfilter_sink_event));
+
   GST_PAD_SET_PROXY_CAPS (filter->sinkpad);
   gst_element_add_pad (GST_ELEMENT (filter), filter->sinkpad);
 
@@ -95,6 +103,47 @@ gst_mpegtspidfilter_init (MpegtsPidFilter *filter)
   filter->pids = NULL;
   filter->reste = gst_buffer_new ();
   filter->copy = FALSE;
+}
+
+static void
+gst_mpegtspidfilter_finalize (GObject * object)
+{
+  MpegtsPidFilter *mpegtspidfilter;
+
+  mpegtspidfilter = GST_MPEGTSPIDFILTER (object);
+
+  g_free (mpegtspidfilter->pids);
+
+  gst_buffer_unref (mpegtspidfilter->reste);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+static gboolean
+gst_mpegtspidfilter_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
+{
+  gboolean ret;
+  MpegtsPidFilter *filter;
+
+  filter = GST_MPEGTSPIDFILTER (parent);
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CAPS:
+    {
+      GstCaps * caps;
+
+      gst_event_parse_caps (event, &caps);
+      /* do something with the caps */
+
+      /* and forward */
+      ret = gst_pad_event_default (pad, parent, event);
+      break;
+    }
+    default:
+      ret = gst_pad_event_default (pad, parent, event);
+      break;
+  }
+  return ret;
 }
 
 static void

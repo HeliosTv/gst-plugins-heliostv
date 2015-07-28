@@ -2,6 +2,7 @@
 #define __MPEGTSPIDFILTER__
 
 #include <gst/gst.h>
+#include <gst/base/gstbasetransform.h>
 
 G_BEGIN_DECLS
 
