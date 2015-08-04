@@ -255,7 +255,8 @@ gst_heliostvsrc_start (GstBaseSrc * bsrc)
 
 
 
-/***********************************************************************************/static gboolean
+/***********************************************************************************/
+static gboolean
 gst_heliostvsrc_stop (GstBaseSrc * bsrc)
 {
   HeliosTvSource *src;
@@ -369,6 +370,7 @@ gst_heliostvsrc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_PORT_CONTROL:
       source->port_control = g_value_get_int (value); 
+      break;
     case PROP_PORT_STREAM:
       source->port_stream = g_value_get_int (value); 
       break;
@@ -397,6 +399,7 @@ gst_heliostvsrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_PORT_CONTROL:
       g_value_set_int (value, source->port_control);
+      break;
     case PROP_PORT_STREAM:
       g_value_set_int (value, source->port_stream);
       break;
@@ -409,7 +412,8 @@ gst_heliostvsrc_get_property (GObject * object, guint prop_id,
 
 
 
-/***********************************************************************************/static gboolean
+/***********************************************************************************/
+static gboolean
 heliostvsrc_init (GstPlugin * heliostvsrc)
 {
   /* debug category for fltering log messages
