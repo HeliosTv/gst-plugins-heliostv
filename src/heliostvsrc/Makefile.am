@@ -23,4 +23,4 @@ libgstheliostvsrc2_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) $(BOOST_LDFLAGS)
 libgstheliostvsrc2_la_LIBTOOLFLAGS = --tag=disable-static
 
 # headers we need but don't want installed
-noinst_HEADERS = gstheliostvsrc2.h heliostv/ControlChannel.h heliostv/DataChannel.h heliostv/IChannelFactory.h heliostv/ITransportClient.h heliostv/Stream.h heliostv/TcpChannelFactory.h heliostv/TcpClient.h
+noinst_HEADERS = gstheliostvsrc2.h
