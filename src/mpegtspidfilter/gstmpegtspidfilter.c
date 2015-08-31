@@ -27,13 +27,13 @@ enum
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/mpegts,"" systemstream = (boolean) true")
+    GST_STATIC_CAPS ("video/mpegts")
     );
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/mpegts,"" systemstream = (boolean) true")
+    GST_STATIC_CAPS ("video/mpegts")
     );
 
 #define gst_mpegtspidfilter_parent_class parent_class
@@ -43,6 +43,7 @@ G_DEFINE_TYPE (MpegtsPidFilter, gst_mpegtspidfilter, GST_TYPE_ELEMENT);
 static void gst_mpegtspidfilter_finalize (GObject * object);
 static void gst_mpegtspidfilter_set_property (GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec);
 static void gst_mpegtspidfilter_get_property (GObject *object, guint prop_id, GValue *value, GParamSpec *pspec);
+
 static gboolean gst_mpegtspidfilter_sink_event (GstPad * pad, GstObject * parent, GstEvent * event);
 
 static GstFlowReturn gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf);
@@ -114,6 +115,9 @@ gst_mpegtspidfilter_finalize (GObject * object)
 
   g_free (mpegtspidfilter->pids);
 
+  gst_object_unref (mpegtspidfilter->sinkpad);
+  gst_object_unref (mpegtspidfilter->srcpad);
+
   gst_buffer_unref (mpegtspidfilter->reste);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -131,16 +135,28 @@ gst_mpegtspidfilter_sink_event (GstPad * pad, GstObject * parent, GstEvent * eve
     case GST_EVENT_CAPS:
     {
       GstCaps * caps;
-
       gst_event_parse_caps (event, &caps);
-      /* do something with the caps */
-
-      /* and forward */
-      ret = gst_pad_event_default (pad, parent, event);
+      ret = gst_pad_push_event (filter->srcpad, event);
+      gst_object_unref (caps);
       break;
     }
+    /*case GST_EVENT_SEGMENT:
+    {
+      ret = gst_pad_push_event (filter->srcpad, event);
+      break;
+    }
+    case GST_EVENT_EOS:
+    {
+      ret = gst_pad_push_event (filter->srcpad, event);
+      break;
+    }
+    case GST_EVENT_FLUSH_STOP:
+    {
+      ret = gst_pad_push_event (filter->srcpad, event);
+      break;
+    }*/
     default:
-      ret = gst_pad_event_default (pad, parent, event);
+      ret = gst_pad_push_event (filter->srcpad, event);
       break;
   }
   return ret;
@@ -151,26 +167,29 @@ gst_mpegtspidfilter_set_property (GObject *object, guint prop_id, const GValue *
 {
   MpegtsPidFilter *filter = GST_MPEGTSPIDFILTER (object);
 
-  gchar *s;
-  gchar *temp;
+  gchar *s=NULL;
+  gchar *temp=NULL;
   gint temp_int;
 
   switch (prop_id) {
     case PROP_PID:
       s = g_value_get_string (value);
       //parsing
-      temp = strtok (s, ",;");
+      temp = strtok (s, ",;:");
       while (temp != NULL)
       {
         temp_int = atoi(temp);
         filter->pids = g_list_append (filter->pids, GINT_TO_POINTER (temp_int));
-        temp = strtok (NULL, ",");
+        temp = strtok (NULL, ",;:");
       }
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+
+  /*g_free(s);
+  g_free(temp);*/
 }
 
 static void
@@ -178,7 +197,7 @@ gst_mpegtspidfilter_get_property (GObject *object, guint prop_id, GValue *value,
 {
   MpegtsPidFilter *filter = GST_MPEGTSPIDFILTER (object);
 
-  gchar *output;
+  gchar *output=NULL;
 
   switch (prop_id) {
     case PROP_PID:
@@ -199,6 +218,8 @@ gst_mpegtspidfilter_get_property (GObject *object, guint prop_id, GValue *value,
 static GstFlowReturn
 gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
 {
+
+
   //variable declaration and init
   MpegtsPidFilter *filter;
   filter = GST_MPEGTSPIDFILTER (parent);
@@ -211,8 +232,10 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
   int buf_offset = 0;
   gboolean pid_ok = 0;
 
-  /*int j, k;
-  GstMapInfo info_out;*/
+  if(filter->pids==NULL)
+  {
+    pid_ok = 1;
+  }
 
   GList *pointer_pids = filter->pids;
 
@@ -230,44 +253,7 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
   {
     gst_buffer_copy_into (buf_out, filter->reste, GST_BUFFER_COPY_MEMORY, 0, buf_offset);
 
-      //DEBUG
-      /*gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
-
-      for (j=0;j<buf_offset;j++)
-      {
-        k = j%(PACKAGE_SIZE);
-        if (k == 187 || k%20 == 19)
-        {
-          printf("%02x\n", info_out.data[j]);
-        }
-        else
-        {
-          printf("%02x ", info_out.data[j]);
-        }
-      }
-      gst_buffer_unmap (buf_out, &info_out);
-      printf("\n\n");*/
-
     gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, 0, (PACKAGE_SIZE-buf_offset));
-
-      //DEBUG
-      /*gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
-
-      for (j=0;j<buf_offset;j++)
-      {
-        k = j%(PACKAGE_SIZE);
-        if (k == 187 || k%20 == 19)
-        {
-          printf("%02x\n", info_out.data[j]);
-        }
-        else
-        {
-          printf("%02x ", info_out.data[j]);
-        }
-      }
-      gst_buffer_unmap (buf_out, &info_out);
-      printf("\n\n");*/
-
   }
 
   if (buf_offset>0)
@@ -304,23 +290,6 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
     {
       gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, i, PACKAGE_SIZE);
 
-      //DEBUG
-      /*gst_buffer_map (buf_out, &info_out, GST_MAP_READ);
-
-      for (j=0;j<info_out.size;j++)
-      {
-        k = j%(PACKAGE_SIZE);
-        if (k == 187 || k%20 == 19)
-        {
-          printf("%02x\n", info_out.data[j]);
-        }
-        else
-        {
-          printf("%02x ", info_out.data[j]);
-        }
-      }
-      gst_buffer_unmap (buf_out, &info_out);*/
-
       pid_ok = 0;
     }
   }
@@ -345,25 +314,6 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
   //Unmapbuffer
   gst_buffer_unmap (buf, &info);
   gst_buffer_unref(buf);
-
-      //DEBUG
-      /*gst_buffer_map (filter->reste, &info_reste, GST_MAP_READ);
-
-      for (j=0;j<info_reste.size;j++)
-      {
-        k = j%(PACKAGE_SIZE);
-        if (k%20 == 19)
-        {
-          printf("%02x\n", info_reste.data[j]);
-        }
-        else
-        {
-          printf("%02x ", info_reste.data[j]);
-        }
-      }
-      gst_buffer_unmap (filter->reste, &info_reste);
-
-      printf("\n\n\n\n");*/
 
   return gst_pad_push (filter->srcpad, buf_out);
 }
