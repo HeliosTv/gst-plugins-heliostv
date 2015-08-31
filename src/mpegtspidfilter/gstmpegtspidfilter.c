@@ -67,7 +67,7 @@ gst_mpegtspidfilter_class_init (MpegtsPidFilterClass *klass)
   gobject_class->get_property = gst_mpegtspidfilter_get_property;
   gobject_class->finalize = gst_mpegtspidfilter_finalize;
 
-  /*define properties */ //--------> corriger
+  /*define properties */
   g_object_class_install_property (gobject_class, PROP_PID, g_param_spec_string ("pids", "pids", "Set List pids : pid1,pid2,...", "0", G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class, gst_static_pad_template_get (&src_factory));
@@ -115,9 +115,6 @@ gst_mpegtspidfilter_finalize (GObject * object)
 
   g_free (mpegtspidfilter->pids);
 
-  gst_object_unref (mpegtspidfilter->sinkpad);
-  gst_object_unref (mpegtspidfilter->srcpad);
-
   gst_buffer_unref (mpegtspidfilter->reste);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -137,24 +134,8 @@ gst_mpegtspidfilter_sink_event (GstPad * pad, GstObject * parent, GstEvent * eve
       GstCaps * caps;
       gst_event_parse_caps (event, &caps);
       ret = gst_pad_push_event (filter->srcpad, event);
-      gst_object_unref (caps);
       break;
     }
-    /*case GST_EVENT_SEGMENT:
-    {
-      ret = gst_pad_push_event (filter->srcpad, event);
-      break;
-    }
-    case GST_EVENT_EOS:
-    {
-      ret = gst_pad_push_event (filter->srcpad, event);
-      break;
-    }
-    case GST_EVENT_FLUSH_STOP:
-    {
-      ret = gst_pad_push_event (filter->srcpad, event);
-      break;
-    }*/
     default:
       ret = gst_pad_push_event (filter->srcpad, event);
       break;
@@ -187,9 +168,6 @@ gst_mpegtspidfilter_set_property (GObject *object, guint prop_id, const GValue *
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-
-  /*g_free(s);
-  g_free(temp);*/
 }
 
 static void
