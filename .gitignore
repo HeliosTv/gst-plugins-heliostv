@@ -6,6 +6,7 @@ configure
 libtool
 INSTALL
 Makefile.in
+Makefile
 depcomp
 install-sh
 ltmain.sh
@@ -17,3 +18,5 @@ my-plugin-*.tar.*
 *.lo
 .libs
 .deps
+*.swp
+m4
