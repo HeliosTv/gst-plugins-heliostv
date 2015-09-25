@@ -45,6 +45,9 @@ using boost::asio::ip::tcp;
 
 //typedef msgpack::unique_ptr<msgpack::zone> unique_zone;
 
+#define DEFAULT_CONTROL_PORT    31105
+#define DEFAULT_STREAM_PORT     31106
+
 /* properties */
 enum
 {
@@ -122,13 +125,13 @@ gst_heliostvsrc_class_init (HeliosTvSourceClass * klass)
           (GParamFlags) G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_PORT_CONTROL,
-      g_param_spec_int ("port_control", "port_control", "The port to receive packets from", 0,
-          10000, 6000,
+      g_param_spec_int ("port-control", "port-control", "The port to receive packets from", 0,
+          65536, DEFAULT_CONTROL_PORT,
           (GParamFlags) G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_PORT_STREAM,
-      g_param_spec_int ("port_stream", "port_stream", "The port to receive packets from", 0,
-          10000, 6000,
+      g_param_spec_int ("port-stream", "port-stream", "The port to receive packets from", 0,
+          65536, DEFAULT_STREAM_PORT,
           (GParamFlags) G_PARAM_READWRITE));
 
 
@@ -163,8 +166,8 @@ gst_heliostvsrc_class_init (HeliosTvSourceClass * klass)
 static void
 gst_heliostvsrc_init (HeliosTvSource * source)
 {
-  source->port_control = 6005;
-  source->port_stream = 6006;
+  source->port_control = DEFAULT_CONTROL_PORT;
+  source->port_stream = DEFAULT_STREAM_PORT;
   source->host = g_strdup ("localhost");
   source->uri = NULL;
   source->stream = NULL;
@@ -363,16 +366,16 @@ gst_heliostvsrc_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_URI:
-      source->uri = g_value_dup_string (value); 
+      source->uri = g_value_dup_string (value);
       break;
     case PROP_HOST:
-      source->host = g_value_dup_string (value); 
+      source->host = g_value_dup_string (value);
       break;
     case PROP_PORT_CONTROL:
-      source->port_control = g_value_get_int (value); 
+      source->port_control = g_value_get_int (value);
       break;
     case PROP_PORT_STREAM:
-      source->port_stream = g_value_get_int (value); 
+      source->port_stream = g_value_get_int (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
