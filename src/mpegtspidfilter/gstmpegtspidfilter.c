@@ -1,3 +1,27 @@
+/*
+*****************************************************************************
+* HeliosTv
+* Copyright (C) 2015  SoftAtHome
+*
+* Authors:
+*   Fabien Felio  <fabien dot felio at softathome dot com>
+*
+* This library is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Library General Public
+* License as published by the Free Software Foundation; either
+* version 2 of the License, or (at your option) any later version.
+*
+* This library is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+* Library General Public License for more details.
+*
+* You should have received a copy of the GNU Library General Public
+* License along with this library; if not, write to the
+* Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
+* Boston, MA 02110-1301, USA.
+******************************************************************************
+*/
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -89,7 +113,7 @@ static void
 gst_mpegtspidfilter_init (MpegtsPidFilter *filter)
 {
   filter->sinkpad = gst_pad_new_from_static_template (&sink_factory, "sink");
-  
+
   gst_pad_set_chain_function (filter->sinkpad, GST_DEBUG_FUNCPTR(gst_mpegtspidfilter_chain));
   gst_pad_set_event_function (filter->sinkpad,
                               GST_DEBUG_FUNCPTR(gst_mpegtspidfilter_sink_event));
@@ -206,7 +230,7 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
   buf_out = gst_buffer_new ();
 
   int i, cmp_pid = 0, offset = 0;
-  guint16 test = 0; 
+  guint16 test = 0;
   int buf_offset = 0;
   gboolean pid_ok = 0;
 
@@ -221,7 +245,7 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
 
   gst_buffer_map (buf, &info, GST_MAP_READ);
 
-  //Get Size of reste data 
+  //Get Size of reste data
   gst_buffer_map (filter->reste, &info_reste, GST_MAP_READ);
   buf_offset = info_reste.size;
   gst_buffer_unmap (filter->reste, &info_reste);
@@ -346,28 +370,28 @@ static inline gchar *_csl_from_list (GList *input)
 {
   gchar *csl = NULL;
   gchar *tmp, *field;
-  
+
   if (!input || !g_list_length (input)) {
     goto beach;
   }
 
   csl = g_strdup_printf ("%d", GPOINTER_TO_INT (input->data));
-  
+
   input = g_list_next (input);
-  
+
   while (input != NULL) {
     field = g_strdup_printf ("%d", GPOINTER_TO_INT (input->data));
-    
+
     tmp = g_strjoin (",", csl, field, NULL);
-    
+
     g_free (csl);
     g_free (field);
-    
+
     csl = tmp;
-    
+
     input = g_list_next (input);
   }
-  
+
   beach:
 
   return csl;
