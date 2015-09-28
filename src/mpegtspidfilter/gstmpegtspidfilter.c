@@ -34,7 +34,8 @@
 
 GST_DEBUG_CATEGORY_STATIC (gst_mpegtspidfilter_debug);
 #define GST_CAT_DEFAULT gst_mpegtspidfilter_debug
-#define PACKAGE_SIZE 188
+#define TRANSPORT_PACKET_SIZE   188
+#define TRANSPORT_PACKET_SYNC   0x47
 
 
 /*properties */
@@ -227,6 +228,7 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
   filter = GST_MPEGTSPIDFILTER (parent);
 
   GstBuffer *buf_out;
+  gboolean buf_out_is_empty = TRUE;
   buf_out = gst_buffer_new ();
 
   int i, cmp_pid = 0, offset = 0;
@@ -255,16 +257,42 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
   {
     gst_buffer_copy_into (buf_out, filter->reste, GST_BUFFER_COPY_MEMORY, 0, buf_offset);
 
-    gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, 0, (PACKAGE_SIZE-buf_offset));
+    gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, 0, (TRANSPORT_PACKET_SIZE-buf_offset));
+    buf_out_is_empty  = FALSE;
   }
 
   if (buf_offset>0)
-    buf_offset = PACKAGE_SIZE-buf_offset;
+    buf_offset = TRANSPORT_PACKET_SIZE-buf_offset;
 
   offset = buf_offset;
 
+  /* Ensure we are synced in the stream */
+  if(info.data[offset] != TRANSPORT_PACKET_SYNC)
+  {
+      int search_offset = 1;
+      GST_CAT_DEBUG (gst_mpegtspidfilter_debug, "Sync lost, resyncing");
+      if(info.size-offset <  3*TRANSPORT_PACKET_SYNC) {
+          GST_CAT_DEBUG (gst_mpegtspidfilter_debug,
+                  "Sync lost and buffer is too small, dropping it");
+          goto end;
+      }
+
+      while(search_offset < TRANSPORT_PACKET_SIZE) {
+          if( (info.data[offset+search_offset] == TRANSPORT_PACKET_SYNC) &&
+            (info.data[offset+search_offset+TRANSPORT_PACKET_SIZE] == TRANSPORT_PACKET_SYNC) &&
+            (info.data[offset+search_offset+2*TRANSPORT_PACKET_SIZE] == TRANSPORT_PACKET_SYNC) ) {
+              offset += search_offset;
+          }
+          search_offset++;
+      }
+
+      GST_CAT_DEBUG (gst_mpegtspidfilter_debug,
+              "Sync not found in buffer, dropping it");
+      goto end;
+  }
+
   /**************filtrage PID **************/
-  for (i=offset; i<info.size;i+=PACKAGE_SIZE)
+  for (i=offset; i<info.size;i+=TRANSPORT_PACKET_SIZE)
   {
 
     test = info.data[i+1]<<8;
@@ -288,15 +316,15 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
     filter->pids = pointer_pids;
 
     //Parsing buffer
-    if (pid_ok && i<(info.size-PACKAGE_SIZE))
+    if (pid_ok && i<(info.size-TRANSPORT_PACKET_SIZE))
     {
-      gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, i, PACKAGE_SIZE);
-
+      gst_buffer_copy_into (buf_out, buf, GST_BUFFER_COPY_MEMORY, i, TRANSPORT_PACKET_SIZE);
+      buf_out_is_empty  = FALSE;
       pid_ok = 0;
     }
   }
 
-  i -= PACKAGE_SIZE;
+  i -= TRANSPORT_PACKET_SIZE;
 
   //Copy end of buffer
   if ((info.size-i)>0)
@@ -313,11 +341,18 @@ gst_mpegtspidfilter_chain (GstPad *pad, GstObject *parent, GstBuffer *buf)
     filter->copy = 0;
 
 
+end:
   //Unmapbuffer
   gst_buffer_unmap (buf, &info);
   gst_buffer_unref(buf);
 
-  return gst_pad_push (filter->srcpad, buf_out);
+  if(buf_out_is_empty == FALSE) {
+      return gst_pad_push (filter->srcpad, buf_out);
+  }
+  else {
+      gst_buffer_unref(buf_out);
+      return GST_FLOW_OK ;
+  }
 }
 /***********************************************************************************/
 
